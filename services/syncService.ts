@@ -6,6 +6,19 @@ import { Task } from '../database/models/Task';
 const FAKE_API_URL = 'https://jsonplaceholder.typicode.com/posts';
 
 /**
+ * NEW FUNCTION: Checks if there are any pending changes.
+ */
+export async function hasPendingChanges(): Promise<boolean> {
+    const tasksCollection = database.get<Task>('tasks');
+    const pendingTasks = await tasksCollection
+        .query()
+        .fetch();
+    const tasksToSync = pendingTasks.filter(t => t.syncStatus === 'pending');
+    return tasksToSync.length > 0;
+}
+
+
+/**
  * Main sync function - syncs pending changes to server
  */
 export async function syncPendingChanges(): Promise<boolean> {
@@ -33,6 +46,9 @@ export async function syncPendingChanges(): Promise<boolean> {
         }
 
         console.log(`📤 Syncing ${tasksToSync.length} tasks...`);
+
+        // Simulate a network delay for 2 seconds so we can see the notification
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Sync each task to server
         for (const task of tasksToSync) {

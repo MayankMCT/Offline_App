@@ -9,6 +9,13 @@
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
   <!-- Required for foreground services on newer Android versions -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <!-- Required for Foreground Service on Android 14+ -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+
+  <!--
+    THIS IS THE MISSING PERMISSION FOR NOTIFICATIONS ON ANDROID 13+
+  -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
 
   <queries>
@@ -43,21 +50,8 @@
       android:exported="false" />
 
     <!--
-      This receiver handles INSTANT sync when app is open or in background.
-      Android may not deliver this if app is force-killed.
-    -->
-    <receiver
-      android:name=".NetworkChangeReceiver"
-      android:enabled="true"
-      android:exported="true">
-      <intent-filter>
-        <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
-      </intent-filter>
-    </receiver>
-
-    <!--
-      This NEW receiver ensures our 15-minute backup sync
-      is re-scheduled after the phone reboots.
+      This NEW receiver ensures our PersistentSyncService
+      is restarted after the phone reboots.
     -->
     <receiver
       android:name=".BootCompletedReceiver"
@@ -67,5 +61,16 @@
         <action android:name="android.intent.action.BOOT_COMPLETED"/>
       </intent-filter>
     </receiver>
+
+    <!--
+      This is our NEW 24/7 Foreground Service
+      It listens for the network and triggers the SyncWorker.
+    -->
+    <service
+      android:name=".PersistentSyncService"
+      android:enabled="true"
+      android:exported="false"
+      android:foregroundServiceType="dataSync"
+      />
   </application>
 </manifest>

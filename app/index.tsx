@@ -8,16 +8,48 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    PermissionsAndroid, // <-- IMPORT THIS
+    Platform, // <-- IMPORT THIS
 } from 'react-native';
 import { database } from '../database/database';
 import { Task } from '../database/models/Task';
 import { syncPendingChanges } from '../services/syncService';
+
+// NEW FUNCTION TO REQUEST NOTIFICATION PERMISSION
+const requestNotificationPermission = async () => {
+    // Only applies to Android 13 (API 33) and newer
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+        try {
+            const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+            const granted = await PermissionsAndroid.request(permission, {
+                title: 'Notification Permission',
+                message: 'This app needs permission to show sync notifications.',
+                buttonNeutral: 'Ask Me Later',
+                buttonNegative: 'Cancel',
+                buttonPositive: 'OK',
+            });
+            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                console.log('You can use notifications');
+            } else {
+                console.log('Notification permission denied');
+            }
+        } catch (err) {
+            console.warn(err);
+        }
+    }
+};
 
 export default function HomeScreen() {
     const [taskName, setTaskName] = useState('');
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isOnline, setIsOnline] = useState(false);
     const [syncStatus, setSyncStatus] = useState('');
+
+    // THIS IS THE NEW HOOK
+    // Request permission when the app loads
+    useEffect(() => {
+        requestNotificationPermission();
+    }, []);
 
     // Monitor network status and auto-sync when coming online
     // This handles the sync when the app is OPEN
@@ -160,9 +192,9 @@ export default function HomeScreen() {
             {/* Info Box */}
             <View style={styles.infoBox}>
                 <Text style={styles.infoText}>
-                    ℹ️ Syncs immediately when app is open.
-                    {'\n'}When app is **killed**, sync runs ~every 15 mins if network is on.
-                    {'\n'}Try: Turn off WiFi -> Add tasks -> Kill app -> Turn on WiFi -> Wait for notification.
+                    ℹ️ This app now runs a **Foreground Service**.
+                    {'\n'}A persistent notification shows it's always listening.
+                    {'\n'}When you connect to the internet (even if app is killed), sync will start **instantly**.
                 </Text>
             </View>
 
@@ -218,6 +250,7 @@ export default function HomeScreen() {
     );
 }
 
+// Styles are unchanged
 const styles = StyleSheet.create({
     container: {
         flex: 1,

@@ -15,6 +15,9 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+// Import the SyncWorker
+import com.testoffline.sync.SyncWorker
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
@@ -49,6 +52,12 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+
+    // ** THIS IS THE IMPORTANT LINE **
+    // This schedules the 15-minute reliable backup sync.
+    // It will run when the app is first opened, and then the
+    // BootCompletedReceiver will re-schedule it after every phone reboot.
+    SyncWorker.schedulePeriodicSync(applicationContext)
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

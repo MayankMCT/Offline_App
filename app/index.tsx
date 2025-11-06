@@ -20,6 +20,7 @@ export default function HomeScreen() {
     const [syncStatus, setSyncStatus] = useState('');
 
     // Monitor network status and auto-sync when coming online
+    // This handles the sync when the app is OPEN
     useEffect(() => {
         const unsubscribe = NetInfo.addEventListener(state => {
             const wasOffline = !isOnline;
@@ -29,41 +30,17 @@ export default function HomeScreen() {
 
             // Auto-sync when network comes back online
             if (wasOffline && nowOnline) {
-                console.log('🌐 Network restored - auto-syncing...');
+                console.log('🌐 Network restored (app open) - auto-syncing...');
                 syncPendingChanges()
                     .then(() => {
-                        console.log('✅ Auto-sync completed');
+                        console.log('✅ Auto-sync completed (app open)');
                         loadTasks();
                     })
-                    .catch(err => console.error('❌ Auto-sync failed:', err));
+                    .catch(err => console.error('❌ Auto-sync failed (app open):', err));
             }
         });
 
         return () => unsubscribe();
-    }, [isOnline]);
-
-    // Periodic sync every 5 seconds when online
-    useEffect(() => {
-        if (!isOnline) return;
-
-        console.log('⏱️ Starting periodic sync (every 5 seconds)');
-
-        const interval = setInterval(async () => {
-            console.log('🔄 Periodic sync triggered');
-            try {
-                const result = await syncPendingChanges();
-                if (result) {
-                    loadTasks();
-                }
-            } catch (error) {
-                console.error('❌ Periodic sync error:', error);
-            }
-        }, 5000); // 5 seconds
-
-        return () => {
-            console.log('⏹️ Stopping periodic sync');
-            clearInterval(interval);
-        };
     }, [isOnline]);
 
     // Load tasks from database
@@ -183,9 +160,9 @@ export default function HomeScreen() {
             {/* Info Box */}
             <View style={styles.infoBox}>
                 <Text style={styles.infoText}>
-                    ℹ️ This app syncs automatically every 5 seconds when online.
-                    {'\n'}Also syncs immediately when you add/update tasks!
-                    {'\n'}Try turning off WiFi and adding tasks!
+                    ℹ️ Syncs immediately when app is open.
+                    {'\n'}When app is **killed**, sync runs ~every 15 mins if network is on.
+                    {'\n'}Try: Turn off WiFi -> Add tasks -> Kill app -> Turn on WiFi -> Wait for notification.
                 </Text>
             </View>
 
@@ -244,10 +221,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#f5f5ff', // Lighter background
     },
     statusBar: {
-        padding: 12,
+        paddingTop: 40, // Add padding for status bar
+        paddingBottom: 12,
         alignItems: 'center',
         flexDirection: 'row',
         justifyContent: 'center',
@@ -273,7 +251,7 @@ const styles = StyleSheet.create({
         borderLeftColor: '#2196F3',
     },
     infoText: {
-        fontSize: 12,
+        fontSize: 13,
         color: '#1976D2',
         lineHeight: 18,
     },
@@ -289,6 +267,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#ddd',
+        fontSize: 16,
     },
     addButton: {
         backgroundColor: '#2196F3',
@@ -296,11 +275,13 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         minWidth: 70,
+        elevation: 2,
     },
     buttonText: {
         color: 'white',
         fontWeight: 'bold',
         textAlign: 'center',
+        fontSize: 16,
     },
     syncButton: {
         backgroundColor: '#FF9800',
@@ -309,6 +290,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         borderRadius: 8,
         alignItems: 'center',
+        elevation: 2,
     },
     syncButtonText: {
         color: 'white',

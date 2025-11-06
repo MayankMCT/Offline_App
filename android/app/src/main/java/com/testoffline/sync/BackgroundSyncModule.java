@@ -38,7 +38,7 @@ public class BackgroundSyncModule extends ReactContextBaseJavaModule {
             Log.d(TAG, "✅ Background sync module initialized");
             promise.resolve("initialized");
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to initialize: " + e.getMessage());
+             Log.e(TAG, "❌ Failed to initialize: " + e.getMessage());
             promise.reject("ERROR", e.getMessage());
         }
     }
@@ -50,6 +50,7 @@ public class BackgroundSyncModule extends ReactContextBaseJavaModule {
     public void triggerSync(Promise promise) {
         try {
             Context context = getReactApplicationContext();
+            // Call the renamed one-time sync method
             SyncWorker.scheduleOneTimeSync(context);
             Log.d(TAG, "✅ Sync triggered manually");
             promise.resolve("triggered");

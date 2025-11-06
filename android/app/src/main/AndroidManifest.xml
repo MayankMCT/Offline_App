@@ -7,6 +7,10 @@
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  <!-- Required for foreground services on newer Android versions -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
+
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -38,13 +42,29 @@
       android:name=".SyncHeadlessTaskService"
       android:exported="false" />
 
-    <!-- Network Change Receiver - Listens for connectivity changes even when app is killed -->
+    <!--
+      This receiver handles INSTANT sync when app is open or in background.
+      Android may not deliver this if app is force-killed.
+    -->
     <receiver
       android:name=".NetworkChangeReceiver"
       android:enabled="true"
       android:exported="true">
       <intent-filter>
         <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
+      </intent-filter>
+    </receiver>
+
+    <!--
+      This NEW receiver ensures our 15-minute backup sync
+      is re-scheduled after the phone reboots.
+    -->
+    <receiver
+      android:name=".BootCompletedReceiver"
+      android:enabled="true"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED"/>
       </intent-filter>
     </receiver>
   </application>

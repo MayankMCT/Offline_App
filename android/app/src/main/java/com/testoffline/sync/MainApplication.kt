@@ -1,6 +1,7 @@
 package com.testoffline.sync
 
 import android.app.Application
+import android.content.Intent
 import android.content.res.Configuration
 
 import com.facebook.react.PackageList
@@ -15,30 +16,22 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-// Import the SyncWorker
-import com.testoffline.sync.SyncWorker
-
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
-        this,
-        object : DefaultReactNativeHost(this) {
-          override fun getPackages(): List<ReactPackage> {
-            // Packages that cannot be autolinked yet can be added manually here, for example:
-            // packages.add(new MyReactNativePackage());
-            val packages = PackageList(this).packages.toMutableList()
-            // Add our custom background sync package
-            packages.add(BackgroundSyncPackage())
-            return packages
-          }
-
-          override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
-
-          override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
-
-          override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
-          override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
+    this,
+    object : DefaultReactNativeHost(this) {
+      override fun getPackages(): List<ReactPackage> {
+        val packages = PackageList(this).packages.toMutableList()
+        packages.add(BackgroundSyncPackage())
+        packages.add(ForegroundSyncPackage())  
+        return packages
       }
+      override fun getJSMainModuleName() = ".expo/.virtual-metro-entry"
+      override fun getUseDeveloperSupport() = BuildConfig.DEBUG
+      override val isNewArchEnabled = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+      override val isHermesEnabled = BuildConfig.IS_HERMES_ENABLED
+    }
   )
 
   override val reactHost: ReactHost
@@ -47,17 +40,15 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     SoLoader.init(this, false)
-    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-      // If you opted-in for the New Architecture, we load the native entry point for this app.
-      load()
-    }
+    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) { load() }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
 
-    // ** THIS IS THE IMPORTANT LINE **
-    // This schedules the 15-minute reliable backup sync.
-    // It will run when the app is first opened, and then the
-    // BootCompletedReceiver will re-schedule it after every phone reboot.
+    // periodic backup sync
     SyncWorker.schedulePeriodicSync(applicationContext)
+
+    // start persistent network-listener foreground service once
+    val svc = Intent(this, PersistentSyncService::class.java)
+    startForegroundService(svc)
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

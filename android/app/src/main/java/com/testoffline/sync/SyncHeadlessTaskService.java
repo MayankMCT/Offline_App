@@ -15,7 +15,7 @@ public class SyncHeadlessTaskService extends HeadlessJsTaskService {
         return new HeadlessJsTaskConfig(
             "BackgroundSync", // Name of the JS task
             extras != null ? Arguments.fromBundle(extras) : Arguments.createMap(),
-            5000, // Timeout for the task in milliseconds
+            30000, // Timeout for the task in milliseconds
             true // Whether or not the task is allowed to run in foreground
         );
     }

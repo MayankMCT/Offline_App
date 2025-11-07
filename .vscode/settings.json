@@ -6,5 +6,6 @@
         "Oppo",
         "testoffline",
         "yourapp"
-    ]
+    ],
+    "java.configuration.updateBuildConfiguration": "interactive"
 }

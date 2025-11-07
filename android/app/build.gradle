@@ -169,10 +169,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-
-    // WorkManager for background sync when app is killed
-    implementation("androidx.work:work-runtime:2.8.1")
-
+       implementation "androidx.work:work-runtime:2.9.0"
+        implementation "androidx.work:work-runtime-ktx:2.9.0"
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";

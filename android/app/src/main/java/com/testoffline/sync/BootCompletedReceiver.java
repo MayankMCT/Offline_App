@@ -15,6 +15,8 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             Log.d("BootCompletedReceiver", "Phone rebooted. Re-scheduling periodic sync.");
             SyncWorker.schedulePeriodicSync(context);
+            Intent serviceIntent = new Intent(context, PersistentSyncService.class);
+            context.startForegroundService(serviceIntent);
         }
     }
 }

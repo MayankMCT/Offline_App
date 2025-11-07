@@ -1,6 +1,8 @@
 package com.testoffline.sync
 
 import android.app.Application
+import android.content.Intent // <-- **ADD THIS IMPORT**
+import android.os.Build // <-- **ADD THIS IMPORT**
 import android.content.res.Configuration
 
 import com.facebook.react.PackageList
@@ -15,8 +17,9 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-// Import the SyncWorker
+// Import the SyncWorker and PersistentSyncService
 import com.testoffline.sync.SyncWorker
+import com.testoffline.sync.PersistentSyncService // <-- **ADD THIS IMPORT**
 
 class MainApplication : Application(), ReactApplication {
 
@@ -53,11 +56,22 @@ class MainApplication : Application(), ReactApplication {
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
 
-    // ** THIS IS THE IMPORTANT LINE **
-    // This schedules the 15-minute reliable backup sync.
-    // It will run when the app is first opened, and then the
-    // BootCompletedReceiver will re-schedule it after every phone reboot.
+    // ** --- START OF YOUR FIX --- **
+
+    // 1. Schedule the 15-minute reliable backup sync.
     SyncWorker.schedulePeriodicSync(applicationContext)
+
+    // 2. Start the Persistent "Watchman" Service
+    // This answers your question! This code now runs every time the app is opened,
+    // ensuring the "watchman" service is always active.
+    val serviceIntent = Intent(this, PersistentSyncService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent)
+    } else {
+        startService(serviceIntent)
+    }
+
+    // ** --- END OF YOUR FIX --- **
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

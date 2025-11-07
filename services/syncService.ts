@@ -48,7 +48,7 @@ export async function syncPendingChanges(): Promise<boolean> {
         console.log(`📤 Syncing ${tasksToSync.length} tasks...`);
 
         // Simulate a network delay for 2 seconds so we can see the notification
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Sync each task to server
         for (const task of tasksToSync) {

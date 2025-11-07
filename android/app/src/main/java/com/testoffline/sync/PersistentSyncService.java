@@ -3,12 +3,12 @@ package com.testoffline.sync;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
-import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.os.Build;
 import android.os.IBinder;
@@ -18,15 +18,15 @@ import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 
 /**
- * This is the 24/7 Foreground Service you asked for.
- * It runs even if the app is killed and INSTANTLY listens for network changes.
- * This requires a persistent notification.
+ * This is the "Watchman" service.
+ * It runs 24/7 as a Foreground Service to listen for network changes.
+ * Android is very unlikely to kill this service because it shows a persistent notification.
  */
 public class PersistentSyncService extends Service {
 
     private static final String TAG = "PersistentSyncService";
-    private static final String CHANNEL_ID = "PersistentSyncServiceChannel";
-    private static final int SERVICE_NOTIFICATION_ID = 1; // Must be different from SyncWorker's ID
+    public static final int NOTIFICATION_ID = 1; // Different ID from SyncWorker
+    public static final String CHANNEL_ID = "PersistentSyncChannel";
 
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -34,59 +34,65 @@ public class PersistentSyncService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "PersistentSyncService onCreate");
+        Log.d(TAG, "Watchman Service onCreate");
+        connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         createNotificationChannel();
 
-        // This is the persistent notification that is REQUIRED by Android
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Offline App")
-                .setContentText("Sync service is running.")
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setPriority(NotificationCompat.PRIORITY_LOW) // Low priority so it's less intrusive
-                .build();
-
-        // This is what makes it a Foreground Service
-        startForeground(SERVICE_NOTIFICATION_ID, notification);
-
-        connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        // This is the modern network listener. It will fire instantly
-        // as long as this service is running.
+        // This callback fires when network is available
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
-                Log.i(TAG, "NETWORK AVAILABLE! Triggering one-time sync.");
-                // We have internet! Trigger the SyncWorker to do the actual work.
+                Log.i(TAG, "NETWORK AVAILABLE! Triggering instant sync.");
+                // Tell the JavaScript side (if it's open)
+                BackgroundSyncModule.sendNetworkChangeEvent("online");
+                // Schedule an immediate sync task with WorkManager
                 SyncWorker.scheduleOneTimeSync(getApplicationContext());
             }
 
             @Override
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
-                Log.i(TAG, "Network lost.");
+                Log.i(TAG, "NETWORK LOST.");
+                // Tell the JavaScript side (if it's open)
+                BackgroundSyncModule.sendNetworkChangeEvent("offline");
             }
         };
-
-        NetworkRequest networkRequest = new NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build();
-
-        connectivityManager.registerNetworkCallback(networkRequest, networkCallback);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "PersistentSyncService onStartCommand");
-        // If the service is killed by the system, restart it
+        Log.d(TAG, "Watchman Service onStartCommand - Starting Foreground Service.");
+
+        // Create the persistent notification
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Offline App")
+                .setContentText("Sync service is running in background")
+                .setSmallIcon(R.mipmap.ic_launcher) // Use app icon
+                .setContentIntent(pendingIntent)
+                .setOngoing(true) // ***[CHANGE]*** Make it non-swipeable
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT) // ***[CHANGE]*** Set default priority
+                .build();
+
+        // Start the service in the foreground
+        startForeground(NOTIFICATION_ID, notification);
+
+        // Register the network callback
+        NetworkRequest networkRequest = new NetworkRequest.Builder().build();
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback);
+
+        // If the service is killed, restart it
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "PersistentSyncService onDestroy");
-        // Unregister the network callback when the service is destroyed
+        Log.d(TAG, "Watchman Service onDestroy - Unregistering network callback.");
+        // Clean up
         if (connectivityManager != null && networkCallback != null) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
         }
@@ -94,18 +100,20 @@ public class PersistentSyncService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        return null; // We don't provide binding
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Persistent Sync Service", // Channel name
-                    NotificationManager.IMPORTANCE_LOW // Use LOW to ensure it's a silent, persistent notification
+                    "Persistent Sync Service",
+                    NotificationManager.IMPORTANCE_DEFAULT // ***[CHANGE]*** Default importance
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(serviceChannel);
+            if (manager != null) {
+                manager.createNotificationChannel(serviceChannel);
+            }
         }
     }
 }

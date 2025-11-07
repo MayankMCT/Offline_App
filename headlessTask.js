@@ -1,75 +1,62 @@
-import { AppRegistry } from 'react-native';
+import { AppRegistry, NativeModules } from 'react-native';
 import { fullSync, hasPendingChanges } from './services/syncService';
-import * as Notifications from 'expo-notifications';
 
-const SYNC_NOTIFICATION_CHANNEL = 'sync-channel';
+// Get our native module
+const { BackgroundSyncModule } = NativeModules;
 
-// Configure the notification channels
-const setupNotifications = async () => {
-  await Notifications.setNotificationChannelAsync(SYNC_NOTIFICATION_CHANNEL, {
-    name: 'Sync Notifications',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#FF231F7C',
-  });
-};
+// This is a helper function to delay execution
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const BackgroundSync = async (taskData) => {
     console.log('--- HeadlessJS Sync Task Start ---');
 
-    try {
-        await setupNotifications();
+    // Check if module exists
+    if (!BackgroundSyncModule || !BackgroundSyncModule.updateNotification) {
+        console.error("BackgroundSyncModule not found. Cannot update notification.");
+        return; // Exit if native module is not linked
+    }
 
+    try {
         // First, check if there's anything to sync
         const pending = await hasPendingChanges();
         if (!pending) {
             console.log('--- HeadlessJS: No pending changes. Skipping sync. ---');
+            // If we skipped, just reset the notification to default "running" state
+            await BackgroundSyncModule.resetNotification();
             return;
         }
 
-        // --- THIS IS YOUR REQUIREMENT #2 ---
-        // Show "Sync in progress" notification
-        await Notifications.presentNotificationAsync({
-            title: 'Offline App',
-            body: 'Sync in progress...',
-            data: { type: 'sync-progress' },
-            android: {
-                channelId: SYNC_NOTIFICATION_CHANNEL,
-                priority: Notifications.AndroidNotificationPriority.DEFAULT,
-                sticky: false, // Notification will disappear when sync is done
-            },
-        });
+        // --- THIS IS YOUR "UPDATE NOTIFICATION" FIX ---
+        // Update the *existing* notification to "Sync in progress..."
+        // It remains non-swipeable (ongoing: true)
+        await BackgroundSyncModule.updateNotification("Sync in progress...", true);
 
         // Run the actual sync logic
         await fullSync();
 
-        // --- THIS IS YOUR REQUIREMENT #2 ---
-        // Show "Sync complete" notification
-        await Notifications.presentNotificationAsync({
-            title: 'Offline App',
-            body: 'Sync complete! All items are up to date.',
-            data: { type: 'sync-complete' },
-            android: {
-                channelId: SYNC_NOTIFICATION_CHANNEL,
-                priority: Notifications.AndroidNotificationPriority.DEFAULT,
-            },
-        });
+        // --- THIS IS YOUR "UPDATE NOTIFICATION" FIX ---
+        // Update the *existing* notification to "Sync complete!"
+        // Make it swipeable (ongoing: false) so the user can dismiss it
+        await BackgroundSyncModule.updateNotification("Sync complete! All items are up to date.", false);
 
         console.log('--- HeadlessJS Sync Task Success ---');
+
+        // After 5 seconds, reset the notification back to its default "Service is running" state
+        // and make it non-swipeable again.
+        await sleep(5000);
+        await BackgroundSyncModule.resetNotification();
 
     } catch (error) {
         console.error('--- HeadlessJS Sync Task Error ---', error);
 
-        // Show "Sync failed" notification
-        await Notifications.presentNotificationAsync({
-            title: 'Offline App',
-            body: 'Sync failed. Please check your connection.',
-            data: { type: 'sync-fail' },
-            android: {
-                channelId: SYNC_NOTIFICATION_CHANNEL,
-                priority: Notifications.AndroidNotificationPriority.DEFAULT,
-            },
-        });
+        // --- THIS IS YOUR "UPDATE NOTIFICATION" FIX ---
+        // Update the *existing* notification to "Sync failed."
+        // Make it swipeable (ongoing: false)
+        await BackgroundSyncModule.updateNotification("Sync failed. Please check your connection.", false);
+
+        // After 5 seconds, reset the notification
+        await sleep(5000);
+        await BackgroundSyncModule.resetNotification();
     }
 };
 

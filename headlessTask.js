@@ -22,14 +22,14 @@ const BackgroundSync = async (taskData) => {
         if (!pending) {
             console.log('--- HeadlessJS: No pending changes. Skipping sync. ---');
             // If we skipped, just reset the notification to default "running" state
-            await BackgroundSyncModule.resetNotification();
+            await BackgroundSyncModule.updateNotification("Service is running", true);
             return;
         }
 
         // --- THIS IS YOUR "UPDATE NOTIFICATION" FIX ---
         // Update the *existing* notification to "Sync in progress..."
         // It remains non-swipeable (ongoing: true)
-        await BackgroundSyncModule.updateNotification("Sync in progress...", true);
+        await BackgroundSyncModule.updateNotification("Sync in progress...", false);
 
         // Run the actual sync logic
         await fullSync();
@@ -44,7 +44,7 @@ const BackgroundSync = async (taskData) => {
         // After 5 seconds, reset the notification back to its default "Service is running" state
         // and make it non-swipeable again.
         await sleep(5000);
-        await BackgroundSyncModule.resetNotification();
+        await BackgroundSyncModule.updateNotification("Service is running", true);
 
     } catch (error) {
         console.error('--- HeadlessJS Sync Task Error ---', error);
@@ -56,7 +56,7 @@ const BackgroundSync = async (taskData) => {
 
         // After 5 seconds, reset the notification
         await sleep(5000);
-        await BackgroundSyncModule.resetNotification();
+        await BackgroundSyncModule.updateNotification("Service is running", true);
     }
 };
 

@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
+import android.net.NetworkCapabilities; // <-- Import this
 import android.net.NetworkRequest;
 import android.os.Build;
 import android.os.IBinder;
@@ -17,19 +18,15 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 
-/**
- * This is the "Watchman" service.
- * It runs 24/7 as a Foreground Service to listen for network changes.
- * Android is very unlikely to kill this service because it shows a persistent notification.
- */
 public class PersistentSyncService extends Service {
 
     private static final String TAG = "PersistentSyncService";
-    public static final int NOTIFICATION_ID = 1; // Different ID from SyncWorker
+    public static final int NOTIFICATION_ID = 1;
     public static final String CHANNEL_ID = "PersistentSyncChannel";
 
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private boolean isCallbackRegistered = false; // <-- Added to prevent re-registering
 
     @Override
     public void onCreate() {
@@ -38,15 +35,14 @@ public class PersistentSyncService extends Service {
         connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         createNotificationChannel();
 
-        // This callback fires when network is available
+        // **FIX 4: Moved Network Callback creation to onCreate**
+        // This ensures it's only created once when the service is created.
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
                 Log.i(TAG, "NETWORK AVAILABLE! Triggering instant sync.");
-                // Tell the JavaScript side (if it's open)
                 BackgroundSyncModule.sendNetworkChangeEvent("online");
-                // Schedule an immediate sync task with WorkManager
                 SyncWorker.scheduleOneTimeSync(getApplicationContext());
             }
 
@@ -54,7 +50,6 @@ public class PersistentSyncService extends Service {
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
                 Log.i(TAG, "NETWORK LOST.");
-                // Tell the JavaScript side (if it's open)
                 BackgroundSyncModule.sendNetworkChangeEvent("offline");
             }
         };
@@ -64,27 +59,34 @@ public class PersistentSyncService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "Watchman Service onStartCommand - Starting Foreground Service.");
 
-        // Create the persistent notification
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Offline App")
                 .setContentText("Sync service is running in background")
-                .setSmallIcon(R.mipmap.ic_launcher) // Use app icon
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
-                .setOngoing(true) // ***[CHANGE]*** Make it non-swipeable
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT) // ***[CHANGE]*** Set default priority
+                // **FIX 2: Set priority to LOW**
+                // This makes it less intrusive, matching the channel.
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true) // This is correct! Makes it non-swipeable.
                 .build();
 
-        // Start the service in the foreground
         startForeground(NOTIFICATION_ID, notification);
 
-        // Register the network callback
-        NetworkRequest networkRequest = new NetworkRequest.Builder().build();
-        connectivityManager.registerNetworkCallback(networkRequest, networkCallback);
+        // **FIX 4: Only register the callback if it's not already registered**
+        if (!isCallbackRegistered) {
+            // **FIX 3: Make the request specific to Internet access**
+            NetworkRequest networkRequest = new NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build();
 
-        // If the service is killed, restart it
+            connectivityManager.registerNetworkCallback(networkRequest, networkCallback);
+            isCallbackRegistered = true;
+            Log.d(TAG, "Network callback registered.");
+        }
+
         return START_STICKY;
     }
 
@@ -93,8 +95,9 @@ public class PersistentSyncService extends Service {
         super.onDestroy();
         Log.d(TAG, "Watchman Service onDestroy - Unregistering network callback.");
         // Clean up
-        if (connectivityManager != null && networkCallback != null) {
+        if (connectivityManager != null && networkCallback != null && isCallbackRegistered) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
+            isCallbackRegistered = false;
         }
     }
 
@@ -108,8 +111,12 @@ public class PersistentSyncService extends Service {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
                     "Persistent Sync Service",
-                    NotificationManager.IMPORTANCE_DEFAULT // ***[CHANGE]*** Default importance
+                    // **FIX 1: This is the MAIN FIX for the swipeable issue.**
+                    // Must be LOW for a non-intrusive, non-swipeable notification.
+                    NotificationManager.IMPORTANCE_LOW
             );
+            serviceChannel.setDescription("Notification for the persistent background service");
+
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
